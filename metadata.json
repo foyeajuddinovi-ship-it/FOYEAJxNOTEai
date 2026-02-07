@@ -1,0 +1,8 @@
+{
+  "name": "foyeajX note",
+  "description": "An advanced AI-powered notepad with voice transcription, real-time translation, image generation, and smart styling capabilities.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
