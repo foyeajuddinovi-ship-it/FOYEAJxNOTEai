@@ -13,10 +13,3 @@ if (container) {
     </React.StrictMode>
   );
 }
-
-
-
-
-
-
-

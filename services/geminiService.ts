@@ -1,5 +1,71 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type, FunctionDeclaration } from "@google/genai";
+
+export const NOTEPAD_TOOLS: FunctionDeclaration[] = [
+  {
+    name: 'updateNoteContent',
+    parameters: {
+      type: Type.OBJECT,
+      description: 'Update the content of the current note.',
+      properties: {
+        newContent: {
+          type: Type.STRING,
+          description: 'The new HTML content for the note.',
+        },
+        mode: {
+          type: Type.STRING,
+          description: 'Whether to "replace" the content or "append" to it.',
+          enum: ['replace', 'append']
+        }
+      },
+      required: ['newContent', 'mode'],
+    },
+  },
+  {
+    name: 'applyFormatting',
+    parameters: {
+      type: Type.OBJECT,
+      description: 'Apply formatting to the entire note content.',
+      properties: {
+        bold: { type: Type.BOOLEAN },
+        italic: { type: Type.BOOLEAN },
+        underline: { type: Type.BOOLEAN },
+        alignment: { 
+          type: Type.STRING,
+          enum: ['left', 'center', 'right']
+        },
+      }
+    },
+  },
+  {
+    name: 'setNoteTitle',
+    parameters: {
+      type: Type.OBJECT,
+      description: 'Change the title of the current note.',
+      properties: {
+        title: {
+          type: Type.STRING,
+          description: 'The new title for the note.',
+        },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'generateImageForNote',
+    parameters: {
+      type: Type.OBJECT,
+      description: 'Trigger the AI Art engine to generate an image based on a prompt.',
+      properties: {
+        prompt: {
+          type: Type.STRING,
+          description: 'The visual prompt for the image generation.',
+        },
+      },
+      required: ['prompt'],
+    },
+  }
+];
 
 export const geminiService = {
   async translate(text: string, targetLanguage: string): Promise<string> {
@@ -114,10 +180,12 @@ export const geminiService = {
   async generateImage(prompt: string): Promise<string> {
     if (!prompt) return '';
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const refinedPrompt = `GENERATE_IMAGE: High-definition artistic representation of: ${prompt}. Cinematic lighting, professional aesthetic.`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
-        parts: [{ text: prompt }]
+        parts: [{ text: refinedPrompt }]
       },
       config: {
         imageConfig: {
@@ -133,19 +201,29 @@ export const geminiService = {
         }
       }
     }
-    throw new Error("Failed to generate image");
+    const explanation = response.text;
+    throw new Error(explanation || "Failed to generate image asset.");
   },
 
-  async chat(message: string, context: string): Promise<string> {
+  createChatSession(context: string) {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const chat = ai.chats.create({
-      // Use gemini-3-pro-preview for complex reasoning tasks like this intelligent assistant.
+    return ai.chats.create({
       model: 'gemini-3-pro-preview',
       config: {
-        systemInstruction: `You are foyeajX Intelligent Insight, an advanced neural-sync assistant for the foyeajX Note application. You are profoundly analytical, articulate, and world-class in your reasoning. You have full awareness of the user's current note context: [${context}]. Your goal is to help the user evolve their ideas, refine their writing, and provide structured insights. Always prioritize clarity, depth, and creative expansion. Your tone is professional and inspiring.`,
+        systemInstruction: `You are foyeajX Intelligent Insight, an advanced assistant for the foyeajX Note application. 
+        You have full awareness of the user's current note: [${context}]. 
+        You are fluent in both English and Bengali (বাংলা). Always respond elegantly.
+        
+        You have direct control over the notepad using tools:
+        - Use 'updateNoteContent' to rewrite parts of the note or append new ideas.
+        - Use 'applyFormatting' to bold, italicize, or align the text.
+        - Use 'setNoteTitle' to rename the note based on its content.
+        - Use 'generateImageForNote' to create art for the note.
+        
+        When the user asks to bold text or change the note, use your tools! 
+        Always explain what you are doing in a friendly manner.`,
+        tools: [{ functionDeclarations: NOTEPAD_TOOLS }]
       },
     });
-    const response = await chat.sendMessage({ message });
-    return response.text || "I apologize, my neural link experienced a momentary interruption. How may I further assist your creative process?";
   }
 };

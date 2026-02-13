@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Send, X, Bot, Sparkles, User, Clock, Zap, MessageSquareText, 
   BrainCircuit, History, Wand2, Languages, ListRestart, 
@@ -16,21 +16,22 @@ interface Message {
 interface AIChatProps {
   onClose: () => void;
   noteContext?: string;
+  noteId?: string;
+  onExecuteTool?: (name: string, args: any) => string;
   isDark?: boolean;
 }
 
 const SUGGESTIONS = [
-  { icon: <Zap size={14} />, label: "Fix Grammar", prompt: "Please check the grammar and flow of my note." },
-  { icon: <Languages size={14} />, label: "Translate to French", prompt: "Translate this note to French for me." },
-  { icon: <ListRestart size={14} />, label: "List Key Points", prompt: "Extract the top 5 key points from this note." },
-  { icon: <BrainCircuit size={14} />, label: "Expand Idea", prompt: "Can you elaborate more on the main ideas in this note?" },
+  { icon: <Zap size={14} />, label: "Fix Grammar", prompt: "Please fix my note's grammar and append the improved version to the end." },
+  { icon: <Sparkles size={14} />, label: "Bold Header", prompt: "Can you bold the first line of my note?" },
+  { icon: <Wand2 size={14} />, label: "Creative Title", prompt: "Based on my note, please set a new creative title." },
 ];
 
-export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDark }) => {
+export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteId = 'default', onExecuteTool, isDark }) => {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
-      text: "Welcome to foyeajX Intelligent Insight. I am synced with your neural creative context. Shall we refine your vision?",
+      text: "Welcome to foyeajX Intelligent Insight. I am synced with your notepad functions. I speak both English and Bengali (বাংলা). How shall we proceed?",
       timestamp: new Date()
     }
   ]);
@@ -43,6 +44,10 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDar
   const scrollRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // CRITICAL: We only want to recreate the chat session when the note ID changes
+  // or when explicitly requested. Recreating it on every text change was causing extreme lag.
+  const chatSession = useMemo(() => geminiService.createChatSession(noteContext), [noteId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -64,21 +69,31 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDar
     const userMsg = messageToSend.trim();
     if (!customPrompt) setInput('');
     
-    const userMessage: Message = { role: 'user', text: userMsg, timestamp: new Date() };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, { role: 'user', text: userMsg, timestamp: new Date() }]);
     setIsLoading(true);
 
     try {
-      const response = await geminiService.chat(userMsg, noteContext);
-      const assistantMessage: Message = { role: 'assistant', text: response, timestamp: new Date() };
-      setMessages(prev => [...prev, assistantMessage]);
+      const response = await chatSession.sendMessage({ message: userMsg });
+      
+      // Handle function calls if present
+      if (response.functionCalls && onExecuteTool) {
+        for (const fc of response.functionCalls) {
+          onExecuteTool(fc.name, fc.args);
+        }
+      }
+
+      const assistantText = response.text || "Synced and updated.";
+      setMessages(prev => [...prev, { role: 'assistant', text: assistantText, timestamp: new Date() }]);
       
       if (isAutoSpeak) {
-        await geminiService.speak(response);
+        await geminiService.speak(assistantText);
       }
     } catch (error) {
-      const errorMessage: Message = { role: 'assistant', text: "I apologize, but my neural link encountered a brief sync error. Please re-initiate.", timestamp: new Date() };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: "I apologize, but my neural link encountered a brief sync error. Please re-initiate.", 
+        timestamp: new Date() 
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +118,7 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDar
             const base64Audio = (reader.result as string).split(',')[1];
             setIsProcessingVoice(true);
             try {
-              const transcription = await geminiService.transcribe(base64Audio, mediaRecorder.mimeType, 'English');
+              const transcription = await geminiService.transcribe(base64Audio, mediaRecorder.mimeType, 'English/Bengali');
               if (transcription?.trim()) setInput(transcription);
             } catch (e) { console.error("Transcription failed", e); } finally { setIsProcessingVoice(false); }
           };
@@ -132,14 +147,14 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDar
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
               </span>
-              <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>Neural Sync: Optimized</p>
+              <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>Neural Command Link</p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setIsAutoSpeak(!isAutoSpeak)} className={`p-3 rounded-2xl transition-all active:scale-90 flex items-center justify-center gap-2 ${isAutoSpeak ? 'bg-indigo-600 text-white shadow-lg' : (isDark ? 'text-gray-500 bg-gray-800/50' : 'text-gray-400 bg-gray-50')}`}>
             {isAutoSpeak ? <Volume2 size={20} /> : <VolumeX size={20} />}
-            <span className="text-[9px] font-black uppercase tracking-widest hidden sm:block">Talk Back</span>
+            <span className="text-[9px] font-black uppercase tracking-widest hidden sm:block">Voice Reply</span>
           </button>
           <button onClick={onClose} className={`p-3 rounded-2xl transition-all hover:bg-red-50 hover:text-red-500 active:scale-90 ${isDark ? 'text-gray-500 hover:bg-gray-800' : 'text-gray-400'}`}><X size={24} strokeWidth={3} /></button>
         </div>
@@ -166,23 +181,17 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDar
           <div className="flex gap-5 animate-in fade-in duration-500">
             <div className="w-11 h-11 rounded-[20px] bg-indigo-600 text-white shadow-xl flex items-center justify-center"><BrainCircuit size={20} strokeWidth={3} className="animate-spin-slow" /></div>
             <div className="flex flex-col gap-3">
-              <span className={`text-[9px] font-black uppercase tracking-[0.4em] opacity-50 animate-pulse ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>Synthesizing Intelligence</span>
+              <span className={`text-[9px] font-black uppercase tracking-[0.4em] opacity-50 animate-pulse ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>Executing Commands...</span>
               <div className={`${isDark ? 'bg-gray-800/20' : 'bg-white'} border border-indigo-100/30 p-7 rounded-[32px] rounded-tl-none shadow-sm flex items-center gap-2`}>
                 <div className="flex space-x-2.5"><div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div><div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div><div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce"></div></div>
               </div>
             </div>
           </div>
         )}
-        {isProcessingVoice && (
-          <div className="flex flex-row-reverse gap-5 animate-in fade-in duration-500">
-            <div className="w-11 h-11 rounded-[20px] bg-indigo-900/30 text-indigo-300 shadow-xl flex items-center justify-center"><Waves size={20} strokeWidth={3} className="animate-pulse" /></div>
-            <div className="flex flex-col items-end gap-3"><span className="text-[9px] font-black uppercase tracking-[0.4em] opacity-50 animate-pulse text-indigo-400">Decoding Neural Audio</span><div className="bg-indigo-900/10 border border-indigo-900/20 p-5 rounded-[32px] rounded-tr-none shadow-sm"><div className="flex space-x-1.5">{[1,2,3,4,5].map(i => <div key={i} className="w-1.5 h-6 bg-indigo-400/50 rounded-full animate-pulse" style={{ animationDelay: `${i * 0.1}s` }}></div>)}</div></div></div>
-          </div>
-        )}
       </div>
 
       <div className={`p-8 border-t transition-all duration-500 z-30 ${isDark ? 'bg-[#0a0c14] border-gray-800' : 'bg-white border-gray-100'}`}>
-        {!isLoading && messages.length < 5 && !isRecording && (
+        {!isLoading && !isRecording && (
           <div className="flex flex-wrap gap-2.5 mb-8">
             {SUGGESTIONS.map((s, idx) => (
               <button key={idx} onClick={() => handleSend(s.prompt)} className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border ${isDark ? 'bg-gray-800/40 border-gray-700 text-gray-400 hover:text-indigo-300 hover:border-indigo-900/50' : 'bg-indigo-50/50 border-indigo-50 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-100'}`}>
@@ -196,24 +205,13 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', isDar
             {isRecording ? <MicOff size={24} strokeWidth={3} /> : <Mic size={24} strokeWidth={3} />}
           </button>
           <div className="relative flex-1 group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[28px] blur opacity-0 group-focus-within:opacity-10 transition duration-500"></div>
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={isRecording ? "Listening to your thoughts..." : "Command foyeajX Insight..."} className={`relative w-full border rounded-[28px] px-8 py-5 text-[15px] font-semibold focus:outline-none focus:ring-4 transition-all shadow-sm ${isDark ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-indigo-400/5 placeholder:text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-900 focus:ring-indigo-500/5 placeholder:text-gray-300'}`} />
+            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={isRecording ? "Listening..." : "Speak or type in English/Bengali..."} className={`relative w-full border rounded-[28px] px-8 py-5 text-[15px] font-semibold focus:outline-none focus:ring-4 transition-all shadow-sm ${isDark ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-indigo-400/5 placeholder:text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-900 focus:ring-indigo-500/5 placeholder:text-gray-300'}`} />
           </div>
           <button onClick={() => handleSend()} disabled={!input.trim() || isLoading} className={`w-16 h-16 rounded-3xl shadow-2xl transition-all active:scale-90 disabled:opacity-40 flex items-center justify-center ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' : 'bg-[#4856a9] hover:bg-[#3b4791] shadow-[#4856a9]/20'} text-white`}>
             <Send size={24} strokeWidth={3} className={isLoading ? "animate-ping" : ""} />
           </button>
         </div>
-        <div className="flex items-center justify-center gap-3 mt-10 opacity-40 group hover:opacity-100 transition-all cursor-default">
-           <Waves size={14} className="text-indigo-500 animate-pulse" />
-           <p className="text-[9px] font-black uppercase tracking-[0.6em] text-gray-400">Neural Link Sync System</p>
-        </div>
       </div>
-      <style>{`
-        @keyframes gradient-x { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
-        .animate-gradient-x { background-size: 200% 200%; animation: gradient-x 15s ease infinite; }
-        .animate-spin-slow { animation: spin 6s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 };
