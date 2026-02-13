@@ -1,9 +1,8 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Send, X, Bot, Sparkles, User, Clock, Zap, MessageSquareText, 
-  BrainCircuit, History, Wand2, Languages, ListRestart, 
-  Mic, MicOff, Volume2, VolumeX, Loader2, Waves
+  Send, X, Bot, Sparkles, User, Clock, Zap, 
+  BrainCircuit, Wand2, Mic, MicOff, Volume2, VolumeX, Loader2, AlertCircle
 } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
 
@@ -40,14 +39,24 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
   const [isAutoSpeak, setIsAutoSpeak] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [chatSession, setChatSession] = useState<any>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // CRITICAL: We only want to recreate the chat session when the note ID changes
-  // or when explicitly requested. Recreating it on every text change was causing extreme lag.
-  const chatSession = useMemo(() => geminiService.createChatSession(noteContext), [noteId]);
+  // Safely initialize chat session
+  useEffect(() => {
+    try {
+      const session = geminiService.createChatSession(noteContext);
+      setChatSession(session);
+      setError(null);
+    } catch (e) {
+      console.error("Failed to initialize AI session", e);
+      setError("Cloud Intelligence Link failed to initialize. Please check your connectivity.");
+    }
+  }, [noteId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -64,18 +73,18 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
 
   const handleSend = async (customPrompt?: string) => {
     const messageToSend = customPrompt || input;
-    if (!messageToSend.trim() || isLoading) return;
+    if (!messageToSend.trim() || isLoading || !chatSession) return;
     
     const userMsg = messageToSend.trim();
     if (!customPrompt) setInput('');
     
     setMessages(prev => [...prev, { role: 'user', text: userMsg, timestamp: new Date() }]);
     setIsLoading(true);
+    setError(null);
 
     try {
       const response = await chatSession.sendMessage({ message: userMsg });
       
-      // Handle function calls if present
       if (response.functionCalls && onExecuteTool) {
         for (const fc of response.functionCalls) {
           onExecuteTool(fc.name, fc.args);
@@ -89,11 +98,8 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
         await geminiService.speak(assistantText);
       }
     } catch (error) {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        text: "I apologize, but my neural link encountered a brief sync error. Please re-initiate.", 
-        timestamp: new Date() 
-      }]);
+      console.error("AI response error", error);
+      setError("The neural link was interrupted. Please try re-sending.");
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +126,10 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
             try {
               const transcription = await geminiService.transcribe(base64Audio, mediaRecorder.mimeType, 'English/Bengali');
               if (transcription?.trim()) setInput(transcription);
-            } catch (e) { console.error("Transcription failed", e); } finally { setIsProcessingVoice(false); }
+            } catch (e) { 
+              console.error("Transcription failed", e);
+              setError("Voice processing interrupted.");
+            } finally { setIsProcessingVoice(false); }
           };
           stream.getTracks().forEach(track => track.stop());
         };
@@ -177,6 +186,16 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
             </div>
           </div>
         ))}
+        
+        {error && (
+          <div className="flex justify-center animate-in fade-in zoom-in duration-300">
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl px-6 py-4 flex items-center gap-3">
+              <AlertCircle size={18} className="text-red-500" />
+              <span className="label-caps text-red-600 lowercase first-letter:uppercase">{error}</span>
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="flex gap-5 animate-in fade-in duration-500">
             <div className="w-11 h-11 rounded-[20px] bg-indigo-600 text-white shadow-xl flex items-center justify-center"><BrainCircuit size={20} strokeWidth={3} className="animate-spin-slow" /></div>
@@ -191,7 +210,7 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
       </div>
 
       <div className={`p-8 border-t transition-all duration-500 z-30 ${isDark ? 'bg-[#0a0c14] border-gray-800' : 'bg-white border-gray-100'}`}>
-        {!isLoading && !isRecording && (
+        {!isLoading && !isRecording && !error && (
           <div className="flex flex-wrap gap-2.5 mb-8">
             {SUGGESTIONS.map((s, idx) => (
               <button key={idx} onClick={() => handleSend(s.prompt)} className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border ${isDark ? 'bg-gray-800/40 border-gray-700 text-gray-400 hover:text-indigo-300 hover:border-indigo-900/50' : 'bg-indigo-50/50 border-indigo-50 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-100'}`}>
@@ -207,7 +226,7 @@ export const AIChat: React.FC<AIChatProps> = ({ onClose, noteContext = '', noteI
           <div className="relative flex-1 group">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={isRecording ? "Listening..." : "Speak or type in English/Bengali..."} className={`relative w-full border rounded-[28px] px-8 py-5 text-[15px] font-semibold focus:outline-none focus:ring-4 transition-all shadow-sm ${isDark ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-indigo-400/5 placeholder:text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-900 focus:ring-indigo-500/5 placeholder:text-gray-300'}`} />
           </div>
-          <button onClick={() => handleSend()} disabled={!input.trim() || isLoading} className={`w-16 h-16 rounded-3xl shadow-2xl transition-all active:scale-90 disabled:opacity-40 flex items-center justify-center ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' : 'bg-[#4856a9] hover:bg-[#3b4791] shadow-[#4856a9]/20'} text-white`}>
+          <button onClick={() => handleSend()} disabled={!input.trim() || isLoading || !chatSession} className={`w-16 h-16 rounded-3xl shadow-2xl transition-all active:scale-90 disabled:opacity-40 flex items-center justify-center ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' : 'bg-[#4856a9] hover:bg-[#3b4791] shadow-[#4856a9]/20'} text-white`}>
             <Send size={24} strokeWidth={3} className={isLoading ? "animate-ping" : ""} />
           </button>
         </div>
