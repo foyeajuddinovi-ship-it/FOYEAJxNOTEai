@@ -7,14 +7,14 @@ import {
   Type as TypeIcon, X, RefreshCw, Edit3, Sparkles, Volume2, Square, Copy, Check, Info,
   MicOff, AudioLines, Loader2, Eraser, Cloud, ShieldCheck
 } from 'lucide-react';
-import { Note, View, Language, FormattingState } from './types';
-import { LANGUAGES, DEFAULT_FORMATTING } from './constants';
-import { NoteCard } from './components/NoteCard';
-import { LanguageDropdown } from './components/LanguageDropdown';
-import { StylingDropdown } from './components/StylingDropdown';
-import { AIChat } from './components/AIChat';
-import { AIArtModal } from './components/AIArtModal';
-import { geminiService } from './services/geminiService';
+import { Note, View, Language, FormattingState } from './types.ts';
+import { LANGUAGES, DEFAULT_FORMATTING } from './constants.ts';
+import { NoteCard } from './components/NoteCard.tsx';
+import { LanguageDropdown } from './components/LanguageDropdown.tsx';
+import { StylingDropdown } from './components/StylingDropdown.tsx';
+import { AIChat } from './components/AIChat.tsx';
+import { AIArtModal } from './components/AIArtModal.tsx';
+import { geminiService } from './services/geminiService.ts';
 
 type ThemeType = 'light' | 'dark' | 'indigo' | 'rose' | 'amber';
 
@@ -48,27 +48,46 @@ const Logo: React.FC<{ size?: 'sm' | 'md' | 'lg', onClick?: () => void, variant?
   );
 };
 
-const ToolbarIcon: React.FC<{ children: React.ReactNode; onClick?: () => void; active?: boolean; loading?: boolean; badge?: string; tooltipTitle: string; className?: string; }> = ({ children, onClick, active, loading, badge, tooltipTitle, className = '' }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
+const ToolbarIcon: React.FC<{ 
+  children: React.ReactNode; 
+  onClick?: () => void; 
+  active?: boolean; 
+  loading?: boolean; 
+  badge?: string; 
+  tooltipTitle: string; 
+  className?: string; 
+}> = ({ children, onClick, active, loading, badge, tooltipTitle, className = '' }) => {
   return (
-    <div className="relative flex-shrink-0">
-      <button onClick={onClick} onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} disabled={loading} className={`w-11 h-11 relative flex items-center justify-center rounded-xl transition-all text-white hover:bg-white/20 active:scale-90 ${active ? 'bg-white text-[#4856a9] shadow-inner scale-105' : ''} ${loading ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}>
+    <div className="relative flex-shrink-0 flex flex-col items-center group">
+      <button 
+        onClick={onClick} 
+        disabled={loading} 
+        className={`w-11 h-11 relative flex items-center justify-center rounded-xl transition-all text-white hover:bg-white/20 active:scale-90 ${active ? 'bg-white text-[#4856a9] shadow-inner scale-105' : ''} ${loading ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+      >
         {children}
         {badge && !loading && <div className="absolute -bottom-1 -right-1 bg-white text-[#4856a9] text-[8px] font-black px-1 rounded-md shadow-sm border border-indigo-100 uppercase tracking-tighter pointer-events-none">{badge}</div>}
       </button>
-      <Tooltip text={tooltipTitle} visible={showTooltip} position="bottom" />
+      <span className={`text-[8px] font-black uppercase tracking-tighter mt-1 whitespace-nowrap transition-colors duration-200 ${active ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
+        {tooltipTitle}
+      </span>
     </div>
   );
 };
 
 const NavItem = ({ icon, active, onClick, tooltipTitle, isDark }: any) => {
-  const [showTooltip, setShowTooltip] = useState(false);
   return (
-    <div className="relative flex flex-col items-center">
-      <button onClick={onClick} onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} className={`flex flex-col items-center justify-center transition-all ${active ? 'text-[#4856a9]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-        <div className={`p-2.5 rounded-2xl transition-all ${active ? (isDark ? 'bg-[#4856a9]/20' : 'bg-indigo-50') : isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>{icon}</div>
+    <div className="relative flex flex-col items-center group">
+      <button 
+        onClick={onClick} 
+        className={`flex flex-col items-center justify-center transition-all ${active ? 'text-[#4856a9]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}
+      >
+        <div className={`p-2.5 rounded-2xl transition-all ${active ? (isDark ? 'bg-[#4856a9]/20' : 'bg-indigo-50') : isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
+          {icon}
+        </div>
+        <span className={`text-[10px] font-black uppercase tracking-widest mt-1 ${active ? (isDark ? 'text-indigo-400' : 'text-[#4856a9]') : isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+          {tooltipTitle}
+        </span>
       </button>
-      <Tooltip text={tooltipTitle} visible={showTooltip} position="top" />
     </div>
   );
 };
@@ -413,16 +432,16 @@ const App: React.FC = () => {
             </div>
 
             <div className="px-6 py-2 relative overflow-visible">
-              <div className={`${isDarkMode ? 'bg-indigo-950/80 border-indigo-900' : 'bg-[#4856a9]'} rounded-2xl p-1.5 flex items-center justify-between shadow-xl transition-all`}>
-                <div className="flex items-center gap-1">
+              <div className={`${isDarkMode ? 'bg-indigo-950/80 border-indigo-900' : 'bg-[#4856a9]'} rounded-2xl p-4 flex items-center justify-between shadow-xl transition-all overflow-x-auto no-scrollbar`}>
+                <div className="flex items-center gap-4">
                   <ToolbarIcon onClick={handleLoud} active={isLouding} tooltipTitle="Vocalizer"><Volume2 size={20} /></ToolbarIcon>
-                  <ToolbarIcon onClick={handleDictateToggle} active={isTranscribing} className={isTranscribing ? "bg-red-500 animate-pulse" : ""} tooltipTitle="Dictation">{isTranscribing ? <MicOff size={20} /> : <AudioLines size={20} />}</ToolbarIcon>
+                  <ToolbarIcon onClick={handleDictateToggle} active={isTranscribing} className={isTranscribing ? "bg-red-500 animate-pulse" : ""} tooltipTitle="Dictate"><AudioLines size={20} /></ToolbarIcon>
                   <ToolbarIcon onClick={() => { setShowTranslateDropdown(!showTranslateDropdown); setShowStyling(false); setShowDictateDropdown(false); }} active={showTranslateDropdown} tooltipTitle="Translate"><Languages size={20} /></ToolbarIcon>
                   <ToolbarIcon onClick={handleSummarize} tooltipTitle="Summary"><User size={20} /></ToolbarIcon>
-                  <ToolbarIcon onClick={handleGallery} tooltipTitle="Add Image"><ImageIcon size={20} /></ToolbarIcon>
+                  <ToolbarIcon onClick={handleGallery} tooltipTitle="Add Img"><ImageIcon size={20} /></ToolbarIcon>
                   <ToolbarIcon onClick={() => setShowAIArtModal(true)} tooltipTitle="AI Art"><ImagePlus size={20} /></ToolbarIcon>
                   
-                  <div className="w-px h-6 bg-white/20 mx-1"></div>
+                  <div className="w-px h-10 bg-white/20 mx-1"></div>
                   
                   <ToolbarIcon onClick={handleUndo} active={historyIndex > 0} tooltipTitle="Undo"><RotateCcw size={18} /></ToolbarIcon>
                   <ToolbarIcon onClick={handleRedo} active={historyIndex < history.length - 1} tooltipTitle="Redo"><RotateCw size={18} /></ToolbarIcon>
@@ -430,16 +449,16 @@ const App: React.FC = () => {
                   <ToolbarIcon onClick={() => { setShowStyling(!showStyling); setShowTranslateDropdown(false); setShowDictateDropdown(false); }} active={showStyling} tooltipTitle="Styling"><TypeIcon size={20} /></ToolbarIcon>
                 </div>
                 
-                <div className="flex items-center gap-1 pr-1">
-                  <ToolbarIcon onClick={handleDownload} tooltipTitle="Download"><Download size={20} /></ToolbarIcon>
+                <div className="flex items-center gap-4 pl-4 border-l border-white/20">
+                  <ToolbarIcon onClick={handleDownload} tooltipTitle="Save File"><Download size={20} /></ToolbarIcon>
                   <ToolbarIcon onClick={handleShare} tooltipTitle="Share"><Share2 size={20} /></ToolbarIcon>
-                  <ToolbarIcon onClick={() => { if(confirm("CLEAR ALL CONTENT?")){ if(editorRef.current) editorRef.current.innerHTML = ''; setCurrentNote({...currentNote, content: ''}); addToHistory('', true); } }} tooltipTitle="Eraser"><Eraser size={20} /></ToolbarIcon>
+                  <ToolbarIcon onClick={() => { if(confirm("CLEAR ALL CONTENT?")){ if(editorRef.current) editorRef.current.innerHTML = ''; setCurrentNote({...currentNote, content: ''}); addToHistory('', true); } }} tooltipTitle="Erase"><Eraser size={20} /></ToolbarIcon>
                 </div>
               </div>
 
-              {showTranslateDropdown && <div className="absolute top-[60px] left-6 z-[100]"><LanguageDropdown position="bottom" onClose={() => setShowTranslateDropdown(false)} onSelect={handleTranslate} activeLangCode={selectedLang.code} /></div>}
-              {showDictateDropdown && <div className="absolute top-[60px] left-6 z-[100]"><LanguageDropdown title="Voice Input" position="bottom" onClose={() => setShowDictateDropdown(false)} onSelect={(lang) => { startRecording(lang); setShowDictateDropdown(false); }} activeLangCode={dictateLang.code} /></div>}
-              {showStyling && <div className="absolute top-[60px] left-6 z-[100]"><StylingDropdown formatting={currentNote.formatting} onChange={handleUpdateFormatting} onClose={() => setShowStyling(false)} /></div>}
+              {showTranslateDropdown && <div className="absolute top-[80px] left-6 z-[100]"><LanguageDropdown position="bottom" onClose={() => setShowTranslateDropdown(false)} onSelect={handleTranslate} activeLangCode={selectedLang.code} /></div>}
+              {showDictateDropdown && <div className="absolute top-[80px] left-6 z-[100]"><LanguageDropdown title="Voice Input" position="bottom" onClose={() => setShowDictateDropdown(false)} onSelect={(lang) => { startRecording(lang); setShowDictateDropdown(false); }} activeLangCode={dictateLang.code} /></div>}
+              {showStyling && <div className="absolute top-[80px] left-6 z-[100]"><StylingDropdown formatting={currentNote.formatting} onChange={handleUpdateFormatting} onClose={() => setShowStyling(false)} /></div>}
             </div>
 
             <main className="flex-1 px-8 py-6 flex flex-col overflow-y-auto">
@@ -453,7 +472,20 @@ const App: React.FC = () => {
                   ))}
                 </div>
               )}
-              <div ref={editorRef} contentEditable data-placeholder="BEGIN TYPING YOUR VISION..." className={`flex-1 rich-editor text-lg leading-relaxed ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`} onInput={(e) => { const h = e.currentTarget.innerHTML; setCurrentNote(prev => prev ? { ...prev, content: h } : null); addToHistory(h); }} dangerouslySetInnerHTML={{ __html: currentNote.content }} />
+              <div 
+                ref={editorRef} 
+                contentEditable 
+                data-placeholder="BEGIN TYPING YOUR VISION..." 
+                className={`flex-1 rich-editor text-lg leading-relaxed outline-none ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`} 
+                onInput={(e) => { 
+                  const h = e.currentTarget.innerHTML; 
+                  // Optimization: only update the note state if the content actually changed significantly
+                  // to avoid unnecessary re-renders during rapid typing
+                  setCurrentNote(prev => prev ? { ...prev, content: h } : null); 
+                  addToHistory(h); 
+                }} 
+                dangerouslySetInnerHTML={{ __html: currentNote.content }} 
+              />
             </main>
 
             <button onClick={() => setShowAIChat(true)} className="absolute bottom-8 right-8 w-20 h-20 bg-[#4856a9] text-white rounded-full shadow-2xl flex flex-col items-center justify-center active:scale-95 transition-all z-50">
@@ -498,14 +530,16 @@ const App: React.FC = () => {
             </main>
 
             <div className={`fixed bottom-0 left-0 right-0 border-t flex flex-col items-center ${isDarkMode ? 'bg-[#0f111a] border-gray-800' : 'bg-white border-gray-50'}`}>
-              <div className="w-full flex items-center justify-around px-4 pt-4 pb-10">
+              <div className="w-full flex items-center justify-around px-4 pt-4 pb-12">
                 <NavItem icon={<Home size={28} />} active={view === 'home'} onClick={() => setView('home')} tooltipTitle="Home" isDark={isDarkMode} />
                 <NavItem icon={<Star size={28} />} active={view === 'starred'} onClick={() => setView('starred')} tooltipTitle="Starred" isDark={isDarkMode} />
-                <button onClick={handleCreateNote} onMouseEnter={() => setShowAddTooltip(true)} onMouseLeave={() => setShowAddTooltip(false)} className="w-16 h-16 bg-[#4856a9] text-white rounded-3xl shadow-2xl -mt-12 flex items-center justify-center border-[6px] border-[#F9FAFF] active:scale-90 transition-all relative">
-                  <Plus size={36} strokeWidth={4} />
-                  <Tooltip text="Create New" visible={showAddTooltip} position="top" />
-                </button>
-                <NavItem icon={<Bot size={28} />} active={view === 'ai'} onClick={() => setShowAIChat(true)} tooltipTitle="Intelligence" isDark={isDarkMode} />
+                <div className="relative">
+                  <button onClick={handleCreateNote} className="w-16 h-16 bg-[#4856a9] text-white rounded-3xl shadow-2xl -mt-14 flex items-center justify-center border-[6px] border-[#F9FAFF] active:scale-90 transition-all relative">
+                    <Plus size={36} strokeWidth={4} />
+                  </button>
+                  <span className={`absolute top-6 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>New</span>
+                </div>
+                <NavItem icon={<Bot size={28} />} active={view === 'ai'} onClick={() => setShowAIChat(true)} tooltipTitle="AI Insight" isDark={isDarkMode} />
                 <NavItem icon={<Settings size={28} />} active={view === 'settings'} onClick={() => setView('settings')} tooltipTitle="Settings" isDark={isDarkMode} />
               </div>
               <div className="w-full py-2 flex items-center justify-center gap-2 border-t border-gray-100/10">
